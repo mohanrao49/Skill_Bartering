@@ -451,9 +451,9 @@ const ActiveSwap = () => {
       {activeTab === 'chat' && (
         <div className="card">
           <h2>Chat with {otherUser.name || otherUser.username}</h2>
-          <div style={{ border: '1px solid #ddd', borderRadius: '5px', padding: '15px', marginBottom: '15px', minHeight: '400px', maxHeight: '400px', overflowY: 'auto' }}>
+          <div style={{ border: '1px solid rgba(255, 255, 255, 0.2)', borderRadius: '5px', padding: '15px', marginBottom: '15px', minHeight: '400px', maxHeight: '400px', overflowY: 'auto', backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
             {swapData.messages?.length === 0 ? (
-              <p style={{ color: '#666', textAlign: 'center' }}>No messages yet. Start the conversation!</p>
+              <p style={{ color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center' }}>No messages yet. Start the conversation!</p>
             ) : (
               swapData.messages?.map((message) => (
                 <div
@@ -461,15 +461,20 @@ const ActiveSwap = () => {
                   style={{
                     marginBottom: '15px',
                     padding: '10px',
-                    backgroundColor: message.sender_id === user.id ? '#e3f2fd' : '#f5f5f5',
+                    backgroundColor: message.sender_id === user.id 
+                      ? 'rgba(102, 126, 234, 0.3)' 
+                      : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '5px',
-                    textAlign: message.sender_id === user.id ? 'right' : 'left'
+                    textAlign: message.sender_id === user.id ? 'right' : 'left',
+                    border: message.sender_id === user.id 
+                      ? '1px solid rgba(102, 126, 234, 0.5)' 
+                      : '1px solid rgba(255, 255, 255, 0.2)'
                   }}
                 >
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>
+                  <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)', marginBottom: '5px' }}>
                     {message.sender_username} - {new Date(message.created_at).toLocaleString()}
                   </div>
-                  <div>{message.message_text}</div>
+                  <div style={{ color: '#ffffff' }}>{message.message_text}</div>
                 </div>
               ))
             )}
@@ -482,7 +487,7 @@ const ActiveSwap = () => {
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
                 placeholder="Type your message..."
-                style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}
+                style={{ flex: 1, padding: '10px', border: '1px solid rgba(255, 255, 255, 0.2)', borderRadius: '5px', backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#ffffff' }}
               />
               <button type="submit" className="btn btn-primary">Send</button>
             </div>

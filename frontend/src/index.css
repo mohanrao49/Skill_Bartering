@@ -266,6 +266,12 @@ code {
   resize: vertical;
 }
 
+.form-group select option {
+  background: #1a1a2e;
+  color: #ffffff;
+  padding: 10px;
+}
+
 .error {
   color: #ff6b9d;
   margin-top: 12px;
