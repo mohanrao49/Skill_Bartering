@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../services/api';
 import './Navbar.css';
 
 const Navbar = () => {
@@ -36,7 +37,7 @@ const Navbar = () => {
           <div className="navbar-user">
             {user?.profile_pic ? (
               <img 
-                src={`http://localhost:5001${user.profile_pic}`} 
+                src={`${API_BASE_URL}${user.profile_pic}`} 
                 alt={user?.username} 
                 className="user-avatar"
               />

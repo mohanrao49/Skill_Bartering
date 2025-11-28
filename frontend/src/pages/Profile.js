@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../services/api';
 
 const Profile = () => {
   const { user, login } = useAuth();
@@ -20,7 +21,7 @@ const Profile = () => {
   useEffect(() => {
     fetchSkills();
     if (user?.profile_pic) {
-      setProfilePicPreview(`http://localhost:5001${user.profile_pic}`);
+      setProfilePicPreview(`${API_BASE_URL}${user.profile_pic}`);
     }
   }, [user]);
 
@@ -125,7 +126,7 @@ const Profile = () => {
         alert(error.response?.data?.error || 'Failed to upload profile picture');
         // Revert preview
         if (user?.profile_pic) {
-          setProfilePicPreview(`http://localhost:5001${user.profile_pic}`);
+          setProfilePicPreview(`${API_BASE_URL}${user.profile_pic}`);
         } else {
           setProfilePicPreview(null);
         }

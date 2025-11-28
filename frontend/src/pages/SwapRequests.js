@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../services/api';
 
 const SwapRequests = () => {
   const { user } = useAuth();
@@ -331,7 +332,7 @@ const SwapRequests = () => {
                                 )}
                                 {resource.file_path && (
                                   <a 
-                                    href={`http://localhost:5001${resource.file_path}`} 
+                                    href={`${API_BASE_URL}${resource.file_path}`} 
                                     target="_blank" 
                                     rel="noopener noreferrer"
                                     style={{ color: '#4CAF50', fontSize: '14px', textDecoration: 'underline' }}
