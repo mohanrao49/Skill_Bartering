@@ -1,0 +1,8 @@
+node_modules/
+.env
+*.db-journal
+.DS_Store
+# Keep only the main database, ignore backups
+database/backups/
+database/*_backup_*.db
+database/*_backup_*.sql

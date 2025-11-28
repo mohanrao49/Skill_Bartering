@@ -1,0 +1,8 @@
+# Root level ignores
+.DS_Store
+*.log
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
