@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -12,13 +12,7 @@ const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('stats');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchData();
-    }
-  }, [isAdmin, activeTab]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       if (activeTab === 'stats') {
         const response = await axios.get('/api/admin/stats');
@@ -39,7 +33,13 @@ const AdminPanel = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchData();
+    }
+  }, [isAdmin, activeTab, fetchData]);
 
   const handleCancelSwap = async (sessionId) => {
     if (!window.confirm('Cancel this swap session?')) return;

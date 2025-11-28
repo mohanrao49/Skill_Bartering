@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../services/api';
 
 const SwapRequests = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [swapRequests, setSwapRequests] = useState({ sent: [], received: [] });
   const [completedSwaps, setCompletedSwaps] = useState([]);
   const [completedSwapsDetails, setCompletedSwapsDetails] = useState({}); // { swapId: { resources: [], messages: [] } }
@@ -15,45 +13,7 @@ const SwapRequests = () => {
   const [activeTab, setActiveTab] = useState('received');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    
-    fetchSwapRequests();
-    
-    // Refresh when page comes into focus (e.g., after completing a swap)
-    const handleFocus = () => {
-      console.log('Page focused, refreshing swap requests...');
-      fetchSwapRequests();
-    };
-    
-    // Listen for swap completion event
-    const handleSwapCompleted = () => {
-      console.log('Swap completed event received, refreshing swap requests...');
-      setTimeout(() => {
-        fetchSwapRequests();
-      }, 1500);
-    };
-    
-    // Also listen for visibility change
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('Page became visible, refreshing swap requests...');
-        fetchSwapRequests();
-      }
-    };
-    
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('swapCompleted', handleSwapCompleted);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('swapCompleted', handleSwapCompleted);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [user?.id]);
-
-  const fetchSwapRequests = async () => {
+  const fetchSwapRequests = useCallback(async () => {
     if (!user?.id) {
       console.log('No user ID, skipping fetch');
       return;
@@ -117,7 +77,45 @@ const SwapRequests = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    fetchSwapRequests();
+    
+    // Refresh when page comes into focus (e.g., after completing a swap)
+    const handleFocus = () => {
+      console.log('Page focused, refreshing swap requests...');
+      fetchSwapRequests();
+    };
+    
+    // Listen for swap completion event
+    const handleSwapCompleted = () => {
+      console.log('Swap completed event received, refreshing swap requests...');
+      setTimeout(() => {
+        fetchSwapRequests();
+      }, 1500);
+    };
+    
+    // Also listen for visibility change
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, refreshing swap requests...');
+        fetchSwapRequests();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('swapCompleted', handleSwapCompleted);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('swapCompleted', handleSwapCompleted);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user?.id, fetchSwapRequests]);
 
   const handleAccept = async (requestId) => {
     try {

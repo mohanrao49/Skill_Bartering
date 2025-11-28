@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
@@ -9,13 +9,122 @@ const Dashboard = () => {
   const [activeSwaps, setActiveSwaps] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
   const [receivedRequests, setReceivedRequests] = useState([]);
+  const [completedSwaps, setCompletedSwaps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [ratingModal, setRatingModal] = useState(null); // { userId, userName, currentRating, swapId? }
   const [selectedRating, setSelectedRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const navigate = useNavigate();
 
-  const loadDashboardData = async () => {
+  const getRequestStatus = useCallback((matchedUserId, sentReqs, receivedReqs, active, completed) => {
+    // FIRST: Check if there's a completed swap with this user (highest priority for rating)
+    const completedSwap = (completed || []).find(swap => 
+      (parseInt(swap.user1_id) === parseInt(matchedUserId) && parseInt(swap.user2_id) === parseInt(user?.id)) ||
+      (parseInt(swap.user2_id) === parseInt(matchedUserId) && parseInt(swap.user1_id) === parseInt(user?.id))
+    );
+    if (completedSwap) {
+      return { status: 'COMPLETED', hasRequest: false, allowNewRequest: true, pendingRequestId: null, completedSwapId: completedSwap.id };
+    }
+    
+    // SECOND: Check if there's an active swap with this user - show ACTIVE status with Complete button
+    const activeSwap = (active || []).find(swap => 
+      (parseInt(swap.user1_id) === parseInt(matchedUserId) && parseInt(swap.user2_id) === parseInt(user?.id)) ||
+      (parseInt(swap.user2_id) === parseInt(matchedUserId) && parseInt(swap.user1_id) === parseInt(user?.id))
+    );
+    if (activeSwap) {
+      return { status: 'ACTIVE', hasRequest: true, allowNewRequest: false, pendingRequestId: null, activeSwapId: activeSwap.id };
+    }
+    
+    // THIRD: Check if current user RECEIVED a pending request FROM the matched user
+    // This means matched user sent a request to current user - show Accept/Reject
+    const receivedPendingRequest = (receivedReqs || []).find(req => 
+      parseInt(req.requester_id) === parseInt(matchedUserId) && req.status === 'PENDING'
+    );
+    
+    if (receivedPendingRequest) {
+      return { 
+        status: 'RECEIVED_PENDING', 
+        hasRequest: true, 
+        allowNewRequest: false,
+        pendingRequestId: receivedPendingRequest.id,
+        isReceivedRequest: true
+      };
+    }
+    
+    // FOURTH: Check if current user SENT a request TO the matched user
+    const sentRequest = (sentReqs || []).find(req => 
+      parseInt(req.receiver_id) === parseInt(matchedUserId)
+    );
+    
+    if (sentRequest) {
+      if (sentRequest.status === 'ACCEPTED') {
+        // Accepted means active swap exists - check active swaps again to get swap ID
+        const activeSwapAfterAccept = (active || []).find(swap => 
+          (parseInt(swap.user1_id) === parseInt(matchedUserId) && parseInt(swap.user2_id) === parseInt(user?.id)) ||
+          (parseInt(swap.user2_id) === parseInt(matchedUserId) && parseInt(swap.user1_id) === parseInt(user?.id))
+        );
+        if (activeSwapAfterAccept) {
+          return { status: 'ACTIVE', hasRequest: true, allowNewRequest: false, pendingRequestId: null, activeSwapId: activeSwapAfterAccept.id };
+        }
+        return { status: null, hasRequest: true, allowNewRequest: true, pendingRequestId: null };
+      } else if (sentRequest.status === 'REJECTED') {
+        // Rejected request - allow new request
+        return { status: 'REJECTED', hasRequest: true, allowNewRequest: true, pendingRequestId: null };
+      } else {
+        // PENDING request sent by current user - show pending status
+        return { status: 'PENDING', hasRequest: true, allowNewRequest: false, pendingRequestId: null };
+      }
+    }
+    
+    // No previous interaction - allow new request
+    return { status: null, hasRequest: false, allowNewRequest: true, pendingRequestId: null };
+  }, [user?.id]);
+
+  const fetchSentRequests = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/swap-requests?type=sent');
+      setSentRequests(response.data.swap_requests || []);
+      return response.data.swap_requests || [];
+    } catch (error) {
+      console.error('Error fetching sent requests:', error);
+      return [];
+    }
+  }, []);
+
+  const fetchReceivedRequests = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/swap-requests?type=received');
+      setReceivedRequests(response.data.swap_requests || []);
+      return response.data.swap_requests || [];
+    } catch (error) {
+      console.error('Error fetching received requests:', error);
+      return [];
+    }
+  }, []);
+
+  const fetchMatchesWithRequests = useCallback(async (sentReqs, receivedReqs, active, completed) => {
+    try {
+      const response = await axios.get('/api/matching/matches');
+      const matchesData = response.data.matches || [];
+      // Mark matches with their request status
+      const matchesWithStatus = matchesData.map(match => {
+        const statusInfo = getRequestStatus(match.user.id, sentReqs, receivedReqs, active, completed);
+        return {
+          ...match,
+          requestStatus: statusInfo.status,
+          hasRequest: statusInfo.hasRequest,
+          allowNewRequest: statusInfo.allowNewRequest,
+          pendingRequestId: statusInfo.pendingRequestId,
+          isReceivedRequest: statusInfo.isReceivedRequest || false
+        };
+      });
+      setMatches(matchesWithStatus);
+    } catch (error) {
+      console.error('Error fetching matches:', error);
+    }
+  }, [getRequestStatus]);
+
+  const loadDashboardData = useCallback(async () => {
     setLoading(true);
       try {
         // Fetch in parallel, then use results
@@ -54,176 +163,69 @@ const Dashboard = () => {
         await fetchMatchesWithRequests(sentReqs, receivedReqs, active, uniqueCompleted);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      // Set empty arrays on error so dashboard still renders
+      setMatches([]);
+      setActiveSwaps([]);
+      setSentRequests([]);
+      setReceivedRequests([]);
+      setCompletedSwaps([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchSentRequests, fetchReceivedRequests, fetchMatchesWithRequests]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
     
-    loadDashboardData();
+    let isMounted = true;
+    
+    const loadData = async () => {
+      if (!isMounted) return;
+      await loadDashboardData();
+    };
+    
+    loadData();
     
     // Listen for skills update event
     const handleSkillsUpdate = () => {
       console.log('Skills updated, refreshing dashboard...');
-      loadDashboardData();
+      if (isMounted) {
+        loadDashboardData();
+      }
     };
     
     // Listen for swap completed event
     const handleSwapCompleted = () => {
       console.log('Swap completed event received, refreshing dashboard...');
-      setTimeout(() => {
-        loadDashboardData();
-      }, 1500);
+      if (isMounted) {
+        setTimeout(() => {
+          if (isMounted) {
+            loadDashboardData();
+          }
+        }, 1500);
+      }
     };
     
     window.addEventListener('skillsUpdated', handleSkillsUpdate);
     window.addEventListener('swapCompleted', handleSwapCompleted);
     
     return () => {
+      isMounted = false;
       window.removeEventListener('skillsUpdated', handleSkillsUpdate);
       window.removeEventListener('swapCompleted', handleSwapCompleted);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
-
-  const fetchMatchesWithRequests = async (sentReqs = sentRequests, receivedReqs = receivedRequests, active = activeSwaps, completed = completedSwaps) => {
-    try {
-      const response = await axios.get('/api/matching/matches');
-      const matchesData = response.data.matches || [];
-      // Mark matches with their request status
-      const matchesWithStatus = matchesData.map(match => {
-        const statusInfo = getRequestStatus(match.user.id, sentReqs, receivedReqs, active, completed);
-        return {
-          ...match,
-          requestStatus: statusInfo.status,
-          hasRequest: statusInfo.hasRequest,
-          allowNewRequest: statusInfo.allowNewRequest,
-          pendingRequestId: statusInfo.pendingRequestId,
-          isReceivedRequest: statusInfo.isReceivedRequest || false
-        };
-      });
-      setMatches(matchesWithStatus);
-    } catch (error) {
-      console.error('Error fetching matches:', error);
-    }
-  };
-
-  const fetchMatches = async () => {
-    await fetchMatchesWithRequests(sentRequests);
-  };
-
-  const [completedSwaps, setCompletedSwaps] = useState([]);
-
-  const fetchActiveSwaps = async () => {
-    try {
-      const response = await axios.get('/api/swap-sessions');
-      const allSwaps = response.data.swap_sessions || [];
-      // Filter only ACTIVE swaps
-      const active = allSwaps.filter(swap => swap.status === 'ACTIVE');
-      setActiveSwaps(active);
-      // Filter COMPLETED swaps
-      const completed = allSwaps.filter(swap => swap.status === 'COMPLETED');
-      setCompletedSwaps(completed);
-    } catch (error) {
-      console.error('Error fetching swaps:', error);
-    }
-  };
-
-  const fetchSentRequests = async () => {
-    try {
-      const response = await axios.get('/api/swap-requests?type=sent');
-      const requests = response.data.swap_requests || [];
-      setSentRequests(requests);
-      return requests;
-    } catch (error) {
-      console.error('Error fetching sent requests:', error);
-      return [];
-    }
-  };
-
-  const fetchReceivedRequests = async () => {
-    try {
-      const response = await axios.get('/api/swap-requests?type=received');
-      const requests = response.data.swap_requests || [];
-      setReceivedRequests(requests);
-      return requests;
-    } catch (error) {
-      console.error('Error fetching received requests:', error);
-      return [];
-    }
-  };
-
-  const getRequestStatus = (matchedUserId, sentReqs = sentRequests, receivedReqs = receivedRequests, active = activeSwaps, completed = completedSwaps) => {
-    // FIRST: Check if there's a completed swap with this user (highest priority for rating)
-    const completedSwap = (completed || []).find(swap => 
-      (parseInt(swap.user1_id) === parseInt(matchedUserId) && parseInt(swap.user2_id) === parseInt(user.id)) ||
-      (parseInt(swap.user2_id) === parseInt(matchedUserId) && parseInt(swap.user1_id) === parseInt(user.id))
-    );
-    if (completedSwap) {
-      return { status: 'COMPLETED', hasRequest: false, allowNewRequest: true, pendingRequestId: null, completedSwapId: completedSwap.id };
-    }
-    
-    // SECOND: Check if there's an active swap with this user - show ACTIVE status with Complete button
-    const activeSwap = (active || []).find(swap => 
-      (parseInt(swap.user1_id) === parseInt(matchedUserId) && parseInt(swap.user2_id) === parseInt(user.id)) ||
-      (parseInt(swap.user2_id) === parseInt(matchedUserId) && parseInt(swap.user1_id) === parseInt(user.id))
-    );
-    if (activeSwap) {
-      return { status: 'ACTIVE', hasRequest: true, allowNewRequest: false, pendingRequestId: null, activeSwapId: activeSwap.id };
-    }
-    
-    // THIRD: Check if current user RECEIVED a pending request FROM the matched user
-    // This means matched user sent a request to current user - show Accept/Reject
-    const receivedPendingRequest = (receivedReqs || []).find(req => 
-      parseInt(req.requester_id) === parseInt(matchedUserId) && req.status === 'PENDING'
-    );
-    
-    if (receivedPendingRequest) {
-      return { 
-        status: 'RECEIVED_PENDING', 
-        hasRequest: true, 
-        allowNewRequest: false,
-        pendingRequestId: receivedPendingRequest.id,
-        isReceivedRequest: true
-      };
-    }
-    
-    // FOURTH: Check if current user SENT a request TO the matched user
-    const sentRequest = (sentReqs || []).find(req => 
-      parseInt(req.receiver_id) === parseInt(matchedUserId)
-    );
-    
-    if (sentRequest) {
-      if (sentRequest.status === 'ACCEPTED') {
-        // Accepted means active swap exists - check active swaps again to get swap ID
-        const activeSwapAfterAccept = (active || []).find(swap => 
-          (parseInt(swap.user1_id) === parseInt(matchedUserId) && parseInt(swap.user2_id) === parseInt(user.id)) ||
-          (parseInt(swap.user2_id) === parseInt(matchedUserId) && parseInt(swap.user1_id) === parseInt(user.id))
-        );
-        if (activeSwapAfterAccept) {
-          return { status: 'ACTIVE', hasRequest: true, allowNewRequest: false, pendingRequestId: null, activeSwapId: activeSwapAfterAccept.id };
-        }
-        return { status: null, hasRequest: true, allowNewRequest: true, pendingRequestId: null };
-      } else if (sentRequest.status === 'REJECTED') {
-        // Rejected request - allow new request
-        return { status: 'REJECTED', hasRequest: true, allowNewRequest: true, pendingRequestId: null };
-      } else {
-        // PENDING request sent by current user - show pending status
-        return { status: 'PENDING', hasRequest: true, allowNewRequest: false, pendingRequestId: null };
-      }
-    }
-    
-    // No previous interaction - allow new request
-    return { status: null, hasRequest: false, allowNewRequest: true, pendingRequestId: null };
-  };
 
 
   const handleRequestSwap = async (matchedUserId) => {
     try {
       // Fetch detailed matching info
       const response = await axios.get(`/api/matching/details/${matchedUserId}`);
-      const { matched_user, their_offers_that_i_want, my_offers_that_they_want, all_their_offers, all_my_offers } = response.data;
+      const { their_offers_that_i_want, my_offers_that_they_want, all_their_offers, all_my_offers } = response.data;
       
       // Check if at least one direction matches
       if (their_offers_that_i_want.length === 0 && my_offers_that_they_want.length === 0) {
@@ -303,6 +305,17 @@ const Dashboard = () => {
     return <div className="loading">Loading matches...</div>;
   }
 
+  if (!user?.id) {
+    return (
+      <div className="container">
+        <div className="page-header">
+          <h1>Dashboard</h1>
+          <p>Please log in to view your dashboard</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container">
       <div className="page-header">
@@ -352,11 +365,8 @@ const Dashboard = () => {
             {matches.map((match) => {
               const statusInfo = getRequestStatus(match.user.id, sentRequests, receivedRequests, activeSwaps, completedSwaps);
               const requestStatus = match.requestStatus !== undefined ? match.requestStatus : statusInfo.status;
-              const hasRequest = match.hasRequest !== undefined ? match.hasRequest : statusInfo.hasRequest;
-              const allowNewRequest = statusInfo.allowNewRequest !== undefined ? statusInfo.allowNewRequest : true;
               const pendingRequestId = match.pendingRequestId !== undefined ? match.pendingRequestId : statusInfo.pendingRequestId;
               const isReceivedRequest = match.isReceivedRequest || statusInfo.isReceivedRequest || false;
-              const completedSwapId = statusInfo.completedSwapId;
               const activeSwapId = statusInfo.activeSwapId;
               
               // Determine styling based on status

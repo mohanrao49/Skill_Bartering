@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
@@ -28,14 +28,7 @@ const ActiveSwap = () => {
   });
   const [messageText, setMessageText] = useState('');
 
-  useEffect(() => {
-    fetchSwapData();
-    // Poll for new messages every 5 seconds
-    const interval = setInterval(fetchSwapData, 5000);
-    return () => clearInterval(interval);
-  }, [id]);
-
-  const fetchSwapData = async () => {
+  const fetchSwapData = useCallback(async () => {
     try {
       const response = await axios.get(`/api/swap-sessions/${id}`);
       setSwapData(response.data);
@@ -45,7 +38,14 @@ const ActiveSwap = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchSwapData();
+    // Poll for new messages every 5 seconds
+    const interval = setInterval(fetchSwapData, 5000);
+    return () => clearInterval(interval);
+  }, [fetchSwapData]);
 
   const handleCreateSession = async (e) => {
     e.preventDefault();

@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../services/api';
 import './Navbar.css';
 
 const Navbar = () => {
-  const { isAuthenticated, user, logout, isAdmin } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {

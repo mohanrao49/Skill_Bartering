@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../services/api';
@@ -18,14 +18,7 @@ const Profile = () => {
     proficiency_level: 'Beginner'
   });
 
-  useEffect(() => {
-    fetchSkills();
-    if (user?.profile_pic) {
-      setProfilePicPreview(`${API_BASE_URL}${user.profile_pic}`);
-    }
-  }, [user]);
-
-  const fetchSkills = async () => {
+  const fetchSkills = useCallback(async () => {
     if (!user) return;
     try {
       const response = await axios.get(`/api/skills/user/${user.id}`);
@@ -35,7 +28,14 @@ const Profile = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    fetchSkills();
+    if (user?.profile_pic) {
+      setProfilePicPreview(`${API_BASE_URL}${user.profile_pic}`);
+    }
+  }, [user, fetchSkills]);
 
   const handleSkillChange = (e) => {
     setSkillForm({ ...skillForm, [e.target.name]: e.target.value });
